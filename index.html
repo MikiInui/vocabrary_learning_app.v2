@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>単語学習アプリ</title>
+    <!-- Tailwind CSSを読み込みます -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fontsからモダンなフォントを読み込みます -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Noto Sans JPを優先し、英語部分はInterを使用する設定です */
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+        }
+        /* 和訳テキストが長くなった場合に備えて、改行を許可します */
+        .translation {
+            white-space: pre-wrap;
+        }
+        /* トグルスイッチのスタイル */
+        .toggle-checkbox:checked {
+            @apply: right-0 border-green-500;
+            right: 0;
+            border-color: #22c55e;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            @apply: bg-green-500;
+            background-color: #22c55e;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 flex flex-col items-center min-h-screen p-4">
+
+    <div class="w-full max-w-md mx-auto">
+        <h1 class="text-3xl md:text-4xl font-bold text-slate-900 mb-6 text-center">単語学習アプリ</h1>
+
+        <!-- 設定セクション -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+            <!-- カテゴリ選択 -->
+            <div class="w-full sm:w-auto flex-grow">
+                <label for="categorySelect" class="sr-only">カテゴリ選択:</label>
+                <select id="categorySelect" onchange="filterByCategory()" class="w-full bg-white border border-slate-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-shadow">
+                    <option value="all">すべてのカテゴリ</option>
+                </select>
+            </div>
+            <!-- シャッフル切り替えスイッチ -->
+            <div class="flex items-center gap-3 bg-white border border-slate-300 rounded-lg px-4 py-3">
+                <label for="shuffleToggle" class="text-slate-700 font-bold select-none">シャッフル</label>
+                <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                    <input type="checkbox" name="shuffleToggle" id="shuffleToggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" onchange="toggleShuffle()" checked/>
+                    <label for="shuffleToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label>
+                </div>
+            </div>
+        </div>
+
+        <!-- 単語カード -->
+        <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8 text-center mb-6">
+            <div class="word text-4xl md:text-5xl font-bold text-slate-900 mb-4 min-h-[60px] flex items-center justify-center" id="wordDisplay"></div>
+            <div class="translation text-2xl md:text-3xl text-slate-600 mb-8 min-h-[80px]" id="translationDisplay"></div>
+            
+            <!-- 操作ボタン -->
+            <div class="flex flex-col gap-3">
+                <button onclick="showTranslation()" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                    答えを見る
+                </button>
+                <div class="flex gap-3">
+                    <button onclick="nextWord()" class="w-full bg-slate-200 text-slate-800 font-bold py-3 px-4 rounded-lg hover:bg-slate-300 transition-all">
+                        次へ
+                    </button>
+                    <button onclick="markLearned()" class="w-full bg-green-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-600 transition-all shadow-sm hover:shadow-md">
+                        覚えた
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 覚えた単語リスト -->
+        <div id="learnedList" class="w-full bg-white rounded-2xl shadow-lg p-6 md:p-8">
+            <h2 class="text-2xl font-bold text-slate-900 mb-4 text-left">覚えた単語一覧</h2>
+            <ul id="learnedWords" class="list-disc list-inside space-y-2 text-left text-slate-700"></ul>
+        </div>
+    </div>
+
+    <script>
+        // ご提供のCSVファイルに基づき、単語リスト全体を正しく更新しました
+        const words = [{'Level': '600', '英語': 'available', '和訳': '形）入手できる、利用できる、手が空いている'},
+{'Level': '600', '英語': 'opening', '和訳': '名）空き、開店'},
+{'Level': '600', '英語': 'review', '和訳': '動）検討する、論評する、目を通す\n名）検討、論評'},
+{'Level': '600', '英語': 'expect', '和訳': '動）予期する、予定する'},
+{'Level': '600', '英語': 'clothing', '和訳': '名）衣類'},
+{'Level': '600', '英語': 'process', '和訳': '動）処理する\n名）プロセス、過程、処理'},
+{'Level': '600', '英語': 'agency', '和訳': '名）代理店、機関'},
+{'Level': '600', '英語': 'advance', '和訳': '形）先行した、事前の\n名）進歩、前進'},
+{'Level': '600', '英語': 'committee', '和訳': '名）委員会'},
+{'Level': '600', '英語': 'successful', '和訳': '形）うまくいく、成功した'},
+{'Level': '600', '英語': 'upcoming', '和訳': '形）今度の'},
+{'Level': '600', '英語': 'transportation', '和訳': '名）交通機関'},
+{'Level': '600', '英語': 'supply', '和訳': '名）必需品\n動）供給する'},
+{'Level': '600', '英語': 'bill', '和訳': '名）請求書\n動）請求書を送る'},
+{'Level': '600', '英語': 'allow', '和訳': '動）許す、可能にする'},
+{'Level': '600', '英語': 'mention', '和訳': '動）述べる、言及する\n名）言及'},
+{'Level': '600', '英語': 'appreciate', '和訳': '動）感謝する'},
+{'Level': '600', '英語': 'replacement', '和訳': '名）交換、交換品'},
+{'Level': '600', '英語': 'paid', '和訳': '形）有給の、支払済みの'},
+{'Level': '600', '英語': 'memo', '和訳': '名）社内文書'},
+{'Level': '600', '英語': 'personnel', '和訳': '名）社員、人事部'},
+{'Level': '600', '英語': 'host', '和訳': '名）司会者'},
+{'Level': '600', '英語': 'suggestion', '和訳': '名）提案'},
+{'Level': '600', '英語': 'supplier', '和訳': '名）納入業者、供給業者'},
+{'Level': '600', '英語': 'remind', '和訳': '動）再確認する、念押しする'},
+{'Level': '600', '英語': 'highly', '和訳': '副）非常に'},
+{'Level': '600', '英語': 'assistance', '和訳': '名）支援、援助'},
+{'Level': '600', '英語': 'encourage', '和訳': '動）奨励する、促す'},
+{'Level': '600', '英語': 'commercial', '和訳': '形）商業用の、商業的な\n名）CM'},
+{'Level': '600', '英語': 'intended', '和訳': '形）意図された、向けられた'},
+{'Level': '600', '英語': 'response', '和訳': '名）返答、返事'},
+{'Level': '600', '英語': 'potential', '和訳': '形）見込みがある'},
+{'Level': '600', '英語': 'advise', '和訳': '動）進める、忠告する、助言する'},
+{'Level': '600', '英語': 'immediately', '和訳': '副）すぐに、即座に'},
+{'Level': '600', '英語': 'responsible', '和訳': '形）担当している、責任がある'},
+{'Level': '600', '英語': 'entire', '和訳': '形）全体の'},
+{'Level': '600', '英語': 'range', '和訳': '名）範囲'},
+{'Level': '600', '英語': 'setting', '和訳': '名）環境'},
+{'Level': '600', '英語': 'regarding', '和訳': '前）～に関する'},
+{'Level': '600', '英語': 'admission', '和訳': '名）入場、入場料、入場許可'},
+{'Level': '600', '英語': 'fit', '和訳': '動）合う、入る'},
+{'Level': '600', '英語': 'reference', '和訳': '名）照会先、照会、参照'},
+{'Level': '600', '英語': 'appear', '和訳': '動）現れる、掲載される、～のように見える'},
+{'Level': '600', '英語': 'develop', '和訳': '動）（計画などを）作り出す、開発する、（スキルを）高める'},
+{'Level': '600', '英語': 'reasonable', '和訳': '形）手ごろな、妥当な'},
+{'Level': '600', '英語': 'direct', '和訳': '動）向ける、管理する\n形）直接の'},
+{'Level': '600', '英語': 'seek', '和訳': '動）探し求める'},
+{'Level': '600', '英語': 'claim', '和訳': '名）申し立て、主張、所有権\n動）主張する、所有権を主張する'},
+{'Level': '600', '英語': 'crew', '和訳': '名）グループ、班、乗員'},
+{'Level': '600', '英語': 'raise', '和訳': '動）上げる、（お金を）集める、高める\n名）昇給'},
+{'Level': '600', '英語': 'attract', '和訳': '動）引き付ける、呼び込む'},
+{'Level': '600', '英語': 'district', '和訳': '名）地区'},
+{'Level': '600', '英語': 'former', '和訳': '形）前の、かつての\n名）前者'},
+{'Level': '600', '英語': 'search', '和訳': '名）捜索、検索\n動）探す、検索する'},
+{'Level': '600', '英語': 'helpful', '和訳': '形）役立つ、助けになる'},
+{'Level': '600', '英語': 'complaint', '和訳': '名）苦情、クレーム'},
+{'Level': '600', '英語': 'related', '和訳': '形）関連した'},
+{'Level': '600', '英語': 'unique', '和訳': '形）他にはない、独自の、特有の'},
+{'Level': '600', '英語': 'significant', '和訳': '形）かなりの、大幅な、重要な'},
+{'Level': '600', '英語': 'occasion', '和訳': '名）特別な行事、（何かが起こる）時、好機'},
+{'Level': '600', '英語': 'standard', '和訳': '名）基準\n形）標準の'},
+{'Level': '600', '英語': 'background', '和訳': '名）経歴、背景'},
+{'Level': '600', '英語': 'advanced', '和訳': '形）進んだ、上級の、高度な'},
+{'Level': '600', '英語': 'confident', '和訳': '形）確信している、自信がある'},
+{'Level': '600', '英語': 'celebration', '和訳': '名）お祝い、祝典'},
+{'Level': '600', '英語': 'basis', '和訳': '名）ベース、基準、根拠'},
+{'Level': '600', '英語': 'complex', '和訳': '名）複合施設、集合住宅\n形）複雑な'},
+{'Level': '600', '英語': 'delighted', '和訳': '形）とても喜んでいる'},
+{'Level': '600', '英語': 'suitable', '和訳': '形）ふさわしい、適切な'},
+{'Level': '600', '英語': 'finalize', '和訳': '動）取りまとめる、仕上げる、最終決定する'},
+{'Level': '600', '英語': 'duty', '和訳': '名）任務、職務、関税'},
+{'Level': '600', '英語': 'earn', '和訳': '動）得る、もたらす'},
+{'Level': '600', '英語': 'overnight', '和訳': '形）一晩の、翌日配送の\n副）一晩'},
+{'Level': '600', '英語': 'particularly', '和訳': '副）特に'},
+{'Level': '600', '英語': 'involved', '和訳': '形）関わった'},
+{'Level': '600', '英語': 'shortly', '和訳': '副）じきに、まもなく'},
+{'Level': '600', '英語': 'automobile', '和訳': '形）自動車の\n名）自動車'},
+{'Level': '600', '英語': 'deposit', '和訳': '名）頭金、敷金、保証金\n動）預け入れる'},
+{'Level': '600', '英語': 'contain', '和訳': '動）含む、所有する'},
+{'Level': '600', '英語': 'recognize', '和訳': '動）（業績等を）認める、（人を）称える、識別する'},
+{'Level': '600', '英語': 'represent', '和訳': '動）代表を務める、相当する、表す'},
+{'Level': '600', '英語': 'grant', '和訳': '名）補助金、助成金\n動）与える、許可する'},
+{'Level': '600', '英語': 'publish', '和訳': '動）出版する'},
+{'Level': '600', '英語': 'accompany', '和訳': '動）添付する、同行する'},
+{'Level': '600', '英語': 'extremely', '和訳': '副）きわめて、非常に'},
+{'Level': '600', '英語': 'valuable', '和訳': '形）貴重な'},
+{'Level': '600', '英語': 'impact', '和訳': '名）影響'},
+{'Level': '600', '英語': 'popularity', '和訳': '名）人気'},
+{'Level': '600', '英語': 'permit', '和訳': '名）許可証\n動）許可する'},
+{'Level': '600', '英語': 'guarantee', '和訳': '動）保証する\n名）保証'},
+{'Level': '600', '英語': 'shuttle', '和訳': '名）定期往復便'},
+{'Level': '600', '英語': 'saving', '和訳': '名）値引き、貯蓄、節約'},
+{'Level': '600', '英語': 'locate', '和訳': '動）見つける'},
+{'Level': '600', '英語': 'prove', '和訳': '動）わかる、判明する、証明する'},
+{'Level': '600', '英語': 'exact', '和訳': '形）正確な'},
+{'Level': '600', '英語': 'labor', '和訳': '名）労働、労働者'},
+{'Level': '600', '英語': 'regard', '和訳': '動）みなす、評価する\n名）点'},
+{'Level': '600', '英語': 'closely', '和訳': '副）密に、注意深く'},
+{'Level': '600', '英語': 'deserve', '和訳': '動）値する'},
+{'Level': '600', '英語': 'loyal', '和訳': '形）忠実な'},
+{'Level': '600', '英語': 'promising', '和訳': '形）有望な'},
+{'Level': '600', '英語': 'stress', '和訳': '動）強調する\n名）ストレス、強調'},
+{'Level': '600', '英語': 'commission', '和訳': '動）委託する、委任する\n名）委員会、歩合'},
+{'Level': '600', '英語': 'committed', '和訳': '形）熱心に取り組む、献身的な'},
+{'Level': '600', '英語': 'comparison', '和訳': '名）比較'},
+{'Level': '600', '英語': 'component', '和訳': '名）部品'},
+{'Level': '600', '英語': 'enjoyable', '和訳': '形）楽しい'},
+{'Level': '600', '英語': 'existing', '和訳': '形）既存の、従来の'},
+{'Level': '600', '英語': 'alike', '和訳': '副）同様に\n形）よく似た'},
+{'Level': '600', '英語': 'appoint', '和訳': '動）指名する、任命する'},
+{'Level': '600', '英語': 'eager', '和訳': '形）～したがる、熱望する'},
+{'Level': '600', '英語': 'fairly', '和訳': '副）かなり'},
+{'Level': '600', '英語': 'practical', '和訳': '形）実務の、実際の、実用的な'},
+{'Level': '600', '英語': 'serious', '和訳': '形）重大な、真剣な、重要な'},
+{'Level': '600', '英語': 'equally', '和訳': '副）同じように、均等に'},
+{'Level': '600', '英語': 'informal', '和訳': '形）非公式の、カジュアルな'},
+{'Level': 'Part1', '英語': 'trim', '和訳': '動）刈りそろえる'},
+{'Level': 'Part1', '英語': 'examine', '和訳': '動）詳しく調べる、チェックする'},
+{'Level': 'Part1', '英語': 'polish', '和訳': '動）磨く'},
+{'Level': 'Part1', '英語': 'lid', '和訳': '名）フタ'},
+{'Level': 'Part1', '英語': 'crosswalk', '和訳': '名）横断歩道'},
+{'Level': 'Part1', '英語': 'brick', '和訳': '名）レンガ'},
+{'Level': 'Part1', '英語': 'be propped up against', '和訳': '～に立てかけられる'},
+{'Level': 'Part1', '英語': 'walkway', '和訳': '名）歩道'},
+{'Level': 'Part1', '英語': 'side by side', '和訳': '並んで'},
+{'Level': 'Part1', '英語': 'fasten', '和訳': '動）結ぶ、留める'},
+{'Level': 'Part1', '英語': 'hallway', '和訳': '名）廊下'},
+{'Level': 'Part1', '英語': 'mount', '和訳': '動）（上に）据える、固定する'},
+{'Level': 'Part1', '英語': 'plaza', '和訳': '名）広場'},
+{'Level': 'Part1', '英語': 'place', '和訳': '動）置く'},
+{'Level': 'Part1', '英語': 'scattered', '和訳': '形）散らばっている'},
+{'Level': 'Part1', '英語': 'artwork', '和訳': '名）芸術作品'},
+{'Level': 'Part1', '英語': 'casting a shadow', '和訳': '影を落とす'},
+{'Level': 'Part1', '英語': 'page through', '和訳': 'ページをめくる'},
+{'Level': 'Part1', '英語': 'boarding', '和訳': '動）乗り込む'},
+{'Level': 'Part1', '英語': 'garbage can', '和訳': 'ごみ箱'},
+{'Level': 'Part1', '英語': 'remove', '和訳': '動）取り出す、取り外す'},
+{'Level': 'Part1', '英語': 'cargo', '和訳': '名）貨物、積み荷'},
+{'Level': 'Part1', '英語': 'auditorium', '和訳': '名）講堂'},
+{'Level': 'Part1', '英語': 'railing', '和訳': '名）手すり'},
+{'Level': 'Part1', '英語': 'potted plant', '和訳': '鉢植え'},
+{'Level': 'Part1', '英語': 'position', '和訳': '動）位置に置く、位置を合わせる'},
+{'Level': 'Part1', '英語': 'brouse', '和訳': '動）（特に買う気もなく店内を）見て回る'},
+{'Level': 'Part1', '英語': 'reflect', '和訳': '動）（像を）映す、反映する'},
+{'Level': 'Part1', '英語': 'lay out', '和訳': '広げる'},
+{'Level': 'Part1', '英語': 'doorway', '和訳': '名）戸口'},
+{'Level': 'Part1', '英語': 'wheel', '和訳': '動）（車輪の付いたものを）動かす'},
+{'Level': 'Part1', '英語': 'lead to', '和訳': '（道などが）～に通じる、つながる'},
+{'Level': 'Part1', '英語': 'sit opposite', '和訳': '向き合って座る'},
+{'Level': 'Part1', '英語': 'in the distance', '和訳': '遠くに'},
+{'Level': 'Part1', '英語': 'fountain', '和訳': '名）噴水、泉'},
+{'Level': 'Part1', '英語': 'intersection', '和訳': '名）交差点'},
+{'Level': 'Part1', '英語': 'platform', '和訳': '名）プラットフォーム'},
+{'Level': 'Part1', '英語': 'glance', '和訳': '動）ちらっと見る'},
+{'Level': 'Part1', '英語': 'cupboard', '和訳': '名）食器棚'},
+{'Level': 'Part1', '英語': 'exit', '和訳': '動）（場所から）出る'},
+{'Level': 'Part1', '英語': 'workstation', '和訳': '名）（PCのある）仕事場、作業場'},
+{'Level': 'Part1', '英語': 'curb', '和訳': '名）縁石'},
+{'Level': 'Part1', '英語': 'slanted', '和訳': '形）傾斜した、斜めの'},
+{'Level': 'Part1', '英語': 'staircase', '和訳': '名）階段'},
+{'Level': 'Part1', '英語': 'spectator', '和訳': '名）観客、見物客'},
+{'Level': 'Part1', '英語': 'courtyard', '和訳': '名）中庭'},
+{'Level': 'Part1', '英語': 'pottery', '和訳': '名）陶器、瀬戸物'},
+{'Level': 'Part1', '英語': 'cookware', '和訳': '名）調理器具'},
+{'Level': 'Part1', '英語': 'overlook', '和訳': '動）見下ろす位置にある'},
+{'Level': 'Part1', '英語': 'pier', '和訳': '名）桟橋'},
+{'Level': 'Part1', '英語': 'lighthouse', '和訳': '名）灯台'},
+{'Level': 'Part1', '英語': 'portrait', '和訳': '名）肖像画'},
+{'Level': 'Part1', '英語': 'unattended', '和訳': '形）人がいない'},
+{'Level': 'Part1', '英語': 'awning', '和訳': '名）日よけ'},
+{'Level': 'Part1', '英語': 'patio', '和訳': '名）テラス'},
+{'Level': 'Part1', '英語': 'unoccupied', '和訳': '形）使われていない'},
+{'Level': 'Part1', '英語': 'pedestrian', '和訳': '名）歩行者'},
+{'Level': 'Part1', '英語': 'crate', '和訳': '名）木箱、ケース'},
+{'Level': 'Part1', '英語': 'utensil', '和訳': '名）調理器具'},
+{'Level': 'Part1', '英語': 'station', '和訳': '動）配置する\n名）駅'},
+{'Level': 'Part1', '英語': 'window pane', '和訳': '窓ガラス'},
+{'Level': 'Part1', '英語': 'strolling', '和訳': '動）ぶらぶら歩く'},
+{'Level': 'Part1', '英語': 'lamppost', '和訳': '名）街頭柱'},
+{'Level': 'Part1', '英語': 'wheelbarrow', '和訳': '名）手押しの一輪車'},
+{'Level': 'Part1', '英語': 'canopy', '和訳': '名）天蓋（4本柱のテント）'},
+{'Level': '730', '英語': 'inventory', '和訳': '名）在庫（表）、棚卸'},
+{'Level': '730', '英語': 'extensive', '和訳': '形）詳細な、幅広い、大規模な'},
+{'Level': '730', '英語': 'renowned', '和訳': '形）名高い、著名な'},
+{'Level': '730', '英語': 'appropriate', '和訳': '形）適切な、適した'},
+{'Level': '730', '英語': 'lease', '和訳': '名）賃貸借（契約）\n動）賃貸借する'},
+{'Level': '730', '英語': 'extended', '和訳': '形）長期の、長時間の'},
+{'Level': '730', '英語': 'itinerary', '和訳': '名）旅程表'},
+{'Level': '730', '英語': 'directory', '和訳': '名）名簿'},
+{'Level': '730', '英語': 'patron', '和訳': '名）愛用者、利用者'},
+{'Level': '730', '英語': 'remodel', '和訳': '動）改築する、リフォームする'},
+{'Level': '730', '英語': 'payroll', '和訳': '名）給与、給与管理、賃金台帳'},
+{'Level': '730', '英語': 'specialize', '和訳': '動）専門とする'},
+{'Level': '730', '英語': 'dedicated', '和訳': '形）献身的な、専門の、特化した'},
+{'Level': '730', '英語': 'exceptional', '和訳': '形）並外れた、非常に素晴らしい'},
+{'Level': '730', '英語': 'specify', '和訳': '動）明確に述べる、明記する'},
+{'Level': '730', '英語': 'household', '和訳': '形）家庭用の\n名）家庭'},
+{'Level': '730', '英語': 'circulation', '和訳': '名）発行部数、流通、（図書館の）貸出'},
+{'Level': '730', '英語': 'relevant', '和訳': '形）関連した'},
+{'Level': '730', '英語': 'workplace', '和訳': '名）職場'},
+{'Level': '730', '英語': 'accommodations', '和訳': '名）宿泊施設'},
+{'Level': '730', '英語': 'substantial', '和訳': '形）かなりの、頑丈な'},
+{'Level': '730', '英語': 'accessible', '和訳': '形）到達できる、利用できる'},
+{'Level': '730', '英語': 'coverage', '和訳': '名）報道、補償'},
+{'Level': '730', '英語': 'generate', '和訳': '動）生み出す'},
+{'Level': '730', '英語': 'refreshment', '和訳': '名）軽食'},
+{'Level': '730', '英語': 'fund-raising', '和訳': '形）資金調達のための、慈善の'},
+{'Level': '730', '英語': 'accomplished', '和訳': '形）熟達した、スキルの高い'},
+{'Level': '730', '英語': 'acquire', '和訳': '動）買収する、得る、獲得する'},
+{'Level': '730', '英語': 'accordingly', '和訳': '副）それに応じて、結果として'},
+{'Level': '730', '英語': 'motivative', '和訳': '動）やる気にさせる'},
+{'Level': '730', '英語': 'subscription', '和訳': '名）購読、加入、会費'},
+{'Level': '730', '英語': 'encounter', '和訳': '動）（問題や困難に）直面する、遭う、出くわす'},
+{'Level': '730', '英語': 'alert', '和訳': '動）（重要なことを）知らせる\n形）警戒した\n名）警報'},
+{'Level': '730', '英語': 'anticipated', '和訳': '形）待ち望まれた'},
+{'Level': '730', '英語': 'consistently', '和訳': '副）常に、変わらず'},
+{'Level': '730', '英語': 'premises', '和訳': '名）敷地'},
+{'Level': '730', '英語': 'enthusiastic', '和訳': '形）熱心な、関心が高い、乗り気である'},
+{'Level': '730', '英語': 'packet', '和訳': '名）小包、袋'},
+{'Level': '730', '英語': 'retain', '和訳': '動）保管する'},
+{'Level': '730', '英語': 'belongings', '和訳': '名）所持品、所有物'},
+{'Level': '730', '英語': 'conservation', '和訳': '名）節約、環境保護'},
+{'Level': '730', '英語': 'routine', '和訳': '形）所定の、日常的に行われる'},
+{'Level': '730', '英語': 'workforce', '和訳': '名）全従業員'},
+{'Level': '730', '英語': 'biography', '和訳': '名）人物紹介、伝記'},
+{'Level': '730', '英語': 'ownership', '和訳': '名）所有権、所有者であること'},
+{'Level': '730', '英語': 'workload', '和訳': '名）仕事量'},
+{'Level': '730', '英語': 'combined', '和訳': '形）共同の、連合の'},
+{'Level': '730', '英語': 'conclude', '和訳': '動）終わる、終える、結論を出す'},
+{'Level': '730', '英語': 'associate', '和訳': '動）関連付ける\n名）アシスタント、同僚\n形）アシスタントの'},
+{'Level': '730', '英語': 'token', '和訳': '名）印'},
+{'Level': '730', '英語': 'dealership', '和訳': '名）販売特約店'},
+{'Level': '730', '英語': 'paycheck', '和訳': '名）給与、給与小切手'},
+{'Level': '730', '英語': 'substitute', '和訳': '動）～を代わりに用いる\n名）代わりを務める人、代用人'},
+{'Level': '730', '英語': 'typically', '和訳': '副）通常、典型的に'},
+{'Level': '730', '英語': 'authorize', '和訳': '動）公認する、権限を与える'},
+{'Level': '730', '英語': 'comparable', '和訳': '形）同党の、匹敵する、類似の'},
+{'Level': '730', '英語': 'faculty', '和訳': '名）（大学の）教員、学部'},
+{'Level': '730', '英語': 'postage', '和訳': '名）郵便料金'},
+{'Level': '730', '英語': 'afterwards', '和訳': '副）その後で'},
+{'Level': '730', '英語': 'aim', '和訳': '動）目指す、狙う、名）目標、狙い'},
+{'Level': '730', '英語': 'solid', '和訳': '形）確かな、信頼できる'},
+{'Level': '730', '英語': 'authority', '和訳': '名）権限、威力、権威、当局'},
+{'Level': '730', '英語': 'contrary', '和訳': '形）正反対の\n名）正反対'},
+{'Level': '730', '英語': 'eventually', '和訳': '副）結局、最終的には'},
+{'Level': '730', '英語': 'expose', '和訳': '動）さらす、触れさせる、暴露する'},
+{'Level': '730', '英語': 'portion', '和訳': '名）部分、一人分の食事'},
+{'Level': '730', '英語': 'remark', '和訳': '名）言葉、コメント、意見\n動）コメントする'},
+{'Level': '730', '英語': 'commonly', '和訳': '副）一般に、普通に、通常'},
+{'Level': '730', '英語': 'convert', '和訳': '動）改造する、変える'},
+{'Level': '730', '英語': 'obligation', '和訳': '名）義務'},
+{'Level': '730', '英語': 'securely', '和訳': '副）しっかりと、安全に'},
+{'Level': '730', '英語': 'strive', '和訳': '動）懸命に努力する'},
+{'Level': '730', '英語': 'timeline', '和訳': '名）予定表'},
+{'Level': '730', '英語': 'urge', '和訳': '動）強く促す'},
+{'Level': '730', '英語': 'acknowledge', '和訳': '動）（受け取ったことを）知らせる、認める'},
+{'Level': '730', '英語': 'transaction', '和訳': '名）取引'},
+{'Level': '730', '英語': 'majority', '和訳': '名）大多数、大部分'},
+{'Level': '730', '英語': 'observe', '和訳': '動）気付く、遵守する、観察する'},
+{'Level': '730', '英語': 'possess', '和訳': '動）持つ、所有する'},
+{'Level': '730', '英語': 'sharply', '和訳': '副）はっきりと、急激に'},
+{'Level': '730', '英語': 'capture', '和訳': '動）（映像や写真に）記録する、とらえる'},
+{'Level': '730', '英語': 'consist', '和訳': '動）～から成る'},
+{'Level': '730', '英語': 'heavily', '和訳': '副）大量に、非常に頻繁に'},
+{'Level': '730', '英語': 'urgent', '和訳': '形）緊急の'},
+{'Level': '730', '英語': 'dispose', '和訳': '動）処分する'},
+{'Level': '730', '英語': 'outlet', '和訳': '名）店舗、コンセント'},
+{'Level': '730', '英語': 'situated', '和訳': '形）位置している'},
+{'Level': '730', '英語': 'surprisingly', '和訳': '副）驚いたことに'},
+{'Level': '730', '英語': 'transform', '和訳': '動）（姿、形、性質などを）一変させる'},
+{'Level': '730', '英語': 'boost', '和訳': '動）押し上げる'},
+{'Level': '730', '英語': 'considerably', '和訳': '副）かなり'},
+{'Level': '730', '英語': 'eliminate', '和訳': '動）取り除く、排除する'},
+{'Level': '730', '英語': 'exclusively', '和訳': '副）限定で、独占的に'},
+{'Level': '730', '英語': 'preliminary', '和訳': '形）仮の、暫定の、本番前の'},
+{'Level': '730', '英語': 'sophisticated', '和訳': '形）洗練された、高性能の'},
+{'Level': '730', '英語': 'tailor', '和訳': '動）合わせる、調整する'},
+{'Level': '730', '英語': 'assume', '和訳': '動）引き受ける、思い込む、仮定する'},
+{'Level': '730', '英語': 'fame', '和訳': '名）名声'},
+{'Level': '730', '英語': 'reveal', '和訳': '動）明らかにする'},
+{'Level': '730', '英語': 'crucial', '和訳': '形）非常に重要な'},
+{'Level': '730', '英語': 'distinguished', '和訳': '形）際立って優れた、傑出した'},
+{'Level': '730', '英語': 'disturb', '和訳': '動）邪魔する'},
+{'Level': '730', '英語': 'fulfill', '和訳': '動）満たす、果たす'},
+{'Level': '730', '英語': 'steadily', '和訳': '副）着実に'},
+{'Level': '730', '英語': 'adequate', '和訳': '形）十分な、適切な'},
+{'Level': '730', '英語': 'attribute', '和訳': '動）起因すると考える、おかげであるとする'},
+{'Level': '730', '英語': 'challenging', '和訳': '形）（困難だが）やりがいのある'},
+{'Level': '730', '英語': 'endevor', '和訳': '名）努力、試み\n動）努力する'},
+{'Level': '730', '英語': 'measure', '和訳': '名）対策、手段\n動）測定する、評価する'},
+{'Level': '730', '英語': 'struggle', '和訳': '動）奮闘する'},
+{'Level': '730', '英語': 'adapt', '和訳': '動）適応する、適応させる、改作する'},
+{'Level': '730', '英語': 'ambitious', '和訳': '形）意欲的な、野心的な'},
+{'Level': '730', '英語': 'consequence', '和訳': '名）結果'},
+{'Level': '730', '英語': 'latter', '和訳': '名）後者'},
+{'Level': '730', '英語': 'transition', '和訳': '名）移行、転身'},
+{'Level': '730', '英語': 'dependable', '和訳': '形）信頼できる'},
+{'Level': '730', '英語': 'diligent', '和訳': '形）勤勉な、まじめな'},
+{'Level': '730', '英語': 'illustrate', '和訳': '動）説明する'},
+{'Level': '730', '英語': 'independently', '和訳': '副）単独で、独立して'},
+{'Level': '730', '英語': 'moderate', '和訳': '形）ほどほどの、適度な'},
+{'Level': '730', '英語': 'outlook', '和訳': '名）見通し、モノの見方'},
+{'Level': '730', '英語': 'ample', '和訳': '形）十分な、有り余るほどの'},
+{'Level': '730', '英語': 'controversial', '和訳': '形）議論を引き起こす、議論の的になる'},
+{'Level': '730', '英語': 'instrumental', '和訳': '形）重要な役割を果たす'},
+{'Level': '730', '英語': 'perspective', '和訳': '名）観点、味方、考え方'},
+{'Level': '730', '英語': 'speculation', '和訳': '名）推測、推量'},
+{'Level': '730', '英語': 'understaffed', '和訳': '形）人手不足の'},
+{'Level': '730', '英語': 'legislation', '和訳': '名）法律、法制化'},
+{'Level': '730', '英語': 'logical', '和訳': '形）妥当な、論理的な、筋の通った'},
+{'Level': '部署・職業名', '英語': 'public relations department', '和訳': '広報部'},
+{'Level': '部署・職業名', '英語': 'plumber', '和訳': '配管工'},
+{'Level': '部署・職業名', '英語': 'carpenter', '和訳': '大工'},
+{'Level': '部署・職業名', '英語': 'welder', '和訳': '溶接工'},
+{'Level': '部署・職業名', '英語': 'civil engineer', '和訳': '土木技師'},
+{'Level': '部署・職業名', '英語': 'locksmith', '和訳': '鍵屋'},
+{'Level': '部署・職業名', '英語': 'hardware store', '和訳': 'ホームセンター'},
+{'Level': '部署・職業名', '英語': 'courier', '和訳': '宅配業者'},
+{'Level': '部署・職業名', '英語': 'auditor', '和訳': '会計監査間'},
+{'Level': '部署・職業名', '英語': 'anthropologist', '和訳': '人類学者'},
+{'Level': '部署・職業名', '英語': 'paralegal', '和訳': '弁護士補助員'},
+{'Level': '部署・職業名', '英語': 'proofreader', '和訳': '校正者'},
+{'Level': '部署・職業名', '英語': 'librarian', '和訳': '図書館員'},
+{'Level': '部署・職業名', '英語': 'conductor', '和訳': '車掌・指揮者'},
+{'Level': '部署・職業名', '英語': 'choreographer', '和訳': '振付師'},
+{'Level': '部署・職業名', '英語': 'curator', '和訳': '学芸員'},
+{'Level': '部署・職業名', '英語': 'spokesperson', '和訳': '広報担当者'},
+{'Level': '部署・職業名', '英語': 'ambassador', '和訳': '大使'},
+{'Level': '部署・職業名', '英語': 'astronomy', '和訳': '天文学'},
+{'Level': '部署・職業名', '英語': 'fine art', '和訳': '芸術'},
+{'Level': '部署・職業名', '英語': 'linguistics', '和訳': '言語学'},
+{'Level': '部署・職業名', '英語': 'literature', '和訳': '文学'},
+{'Level': '部署・職業名', '英語': 'physics', '和訳': '物理'},
+{'Level': '部署・職業名', '英語': 'sociology', '和訳': '社会学'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'notwithstanding', '和訳': '～にもかかわらず'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'given', '和訳': '～を考慮に入れると'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'whereas', '和訳': '一方で'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'now that', '和訳': '今はもう～なので'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'given that', '和訳': '～を考慮すると'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'insofar as', '和訳': '～する限りにおいて'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'thereby', '和訳': 'そうすることで'},
+{'Level': '前置詞・接続詞・接続副詞', '英語': 'meanwhile', '和訳': 'その間'},
+{'Level': '800', '英語': 'lumber', '和訳': '名）材木、製材'},
+{'Level': '800', '英語': 'compartment', '和訳': '名）一区画'},
+{'Level': '800', '英語': 'showcase', '和訳': '動）披露する\n名）お披露目の場、ショーケース'},
+{'Level': '800', '英語': 'commuter', '和訳': '名）通勤者'},
+{'Level': '800', '英語': 'enhance', '和訳': '動）向上させる、強化する'},
+{'Level': '800', '英語': 'freight', '和訳': '名）貨物、輸送、輸送料\n動）輸送する'},
+{'Level': '800', '英語': 'nominate', '和訳': '動）（候補として）推薦する、ノミネートする'},
+{'Level': '800', '英語': 'excerpt', '和訳': '名）抜粋、引用'},
+{'Level': '800', '英語': 'publicize', '和訳': '動）宣伝する'},
+{'Level': '800', '英語': 'transit', '和訳': '名）輸送'},
+{'Level': '800', '英語': 'attire', '和訳': '名）服装'},
+{'Level': '800', '英語': 'courteous', '和訳': '形）礼儀正しい'},
+{'Level': '800', '英語': 'knowlegeable', '和訳': '形）知識が豊富な'},
+{'Level': '800', '英語': 'craftspeople', '和訳': '名）職人'},
+{'Level': '800', '英語': 'emerging', '和訳': '形）新たに現れた、新興の'},
+{'Level': '800', '英語': 'proficiency', '和訳': '名）熟達、スキルの高さ、高い能力'},
+{'Level': '800', '英語': 'scenic', '和訳': '形）眺めがいい'},
+{'Level': '800', '英語': 'acclaimed', '和訳': '形）絶賛されている'},
+{'Level': '800', '英語': 'superb', '和訳': '形）素晴らしい'},
+{'Level': '800', '英語': 'array', '和訳': '名）大量、多量'},
+{'Level': '800', '英語': 'outdated', '和訳': '形）時代遅れの'},
+{'Level': '800', '英語': 'shareholder', '和訳': '名）株主'},
+{'Level': '800', '英語': 'adjacent', '和訳': '形）隣接した'},
+{'Level': '800', '英語': 'duration', '和訳': '名）継続期間'},
+{'Level': '800', '英語': 'hands-on', '和訳': '形）実地の、実用的な'},
+{'Level': '800', '英語': 'intensive', '和訳': '形）集中的な'},
+{'Level': '800', '英語': 'spectacular', '和訳': '形）壮観な、目を見張るほどの'},
+{'Level': '800', '英語': 'entrepreneur', '和訳': '名）起業家'},
+{'Level': '800', '英語': 'prestigious', '和訳': '形）権威のある、誉れ高い'},
+{'Level': '800', '英語': 'misplace', '和訳': '動）紛失する、置き忘れる'},
+{'Level': '800', '英語': 'notable', '和訳': '形）注目すべき、有名な'},
+{'Level': '800', '英語': 'subsidiary', '和訳': '名）子会社'},
+{'Level': '800', '英語': 'designated', '和訳': '形）指定された、指名された'},
+{'Level': '800', '英語': 'disruption', '和訳': '名）混乱、妨げ'},
+{'Level': '800', '英語': 'periodical', '和訳': '名）定期刊行物'},
+{'Level': '800', '英語': 'retrieve', '和訳': '動）（PCから情報を）取り出す、取り戻す'},
+{'Level': '800', '英語': 'rigorous', '和訳': '形）厳格な、厳密な'},
+{'Level': '800', '英語': 'specification', '和訳': '名）仕様（書）'},
+{'Level': '800', '英語': 'tentative', '和訳': '形）仮の'},
+{'Level': '800', '英語': 'apprentice', '和訳': '名）見習い、実習生'},
+{'Level': '800', '英語': 'proceeds', '和訳': '名）収益'},
+{'Level': '800', '英語': 'inclement', '和訳': '形）荒れ模様の'},
+{'Level': '800', '英語': 'novice', '和訳': '名）初心者'},
+{'Level': '800', '英語': 'anecdote', '和訳': '名）逸話'},
+{'Level': '800', '英語': 'commemorate', '和訳': '動）（記念日や人を）祝う、記念する'},
+{'Level': '800', '英語': 'fertilizer', '和訳': '名）肥料'},
+{'Level': '800', '英語': 'proofread', '和訳': '動）校正する'},
+{'Level': '800', '英語': 'solicit', '和訳': '動）求める、懇願する'},
+{'Level': '800', '英語': 'commend', '和訳': '動）ほめる'},
+{'Level': '800', '英語': 'complement', '和訳': '動）合う、保管する'},
+{'Level': '800', '英語': 'incorporate', '和訳': '動）取り入れる、組み込む'},
+{'Level': '800', '英語': 'lapse', '和訳': '動）失効する、うっかりミスをする\n名）過失、時の経過'},
+{'Level': '800', '英語': 'picturesque', '和訳': '形）絵のように美しい'},
+{'Level': '800', '英語': 'prospective', '和訳': '形）見込みのある、将来の'},
+{'Level': '800', '英語': 'surpass', '和訳': '動）超える'},
+{'Level': '800', '英語': 'surplus', '和訳': '形）余分な\n名）余り'},
+{'Level': '800', '英語': 'withstand', '和訳': '動）耐える'},
+{'Level': '800', '英語': 'advocate', '和訳': '名）提唱者、支持者\n動）提唱する'},
+{'Level': '800', '英語': 'aspiring', '和訳': '形）～志望の、～になろうとする'},
+{'Level': '800', '英語': 'credentials', '和訳': '名）資格、経歴、資質'},
+{'Level': '800', '英語': 'interoffice', '和訳': '形）社内の、オフィス間の'},
+{'Level': '800', '英語': 'obstruct', '和訳': '動）ふさぐ、さえぎる'},
+{'Level': '800', '英語': 'abundant', '和訳': '形）豊富な、十分な'},
+{'Level': '800', '英語': 'continuous', '和訳': '形）途切れない、絶え間ない'},
+{'Level': '800', '英語': 'dominant', '和訳': '形）支配的な、圧倒的な'},
+{'Level': '800', '英語': 'fierce', '和訳': '形）熾烈（しれつ）な、激しい'},
+{'Level': '800', '英語': 'prosperous', '和訳': '形）繁栄している、裕福な'},
+{'Level': '800', '英語': 'reluctant', '和訳': '形）気乗りしない、渋っている'},
+{'Level': '800', '英語': 'revitalize', '和訳': '動）再活性化する、復興する'},
+{'Level': '800', '英語': 'devise', '和訳': '動）考案する、立案する'},
+{'Level': '800', '英語': 'foster', '和訳': '動）促進する、養う'},
+{'Level': '800', '英語': 'misleading', '和訳': '形）誤解を招く恐れのある'},
+{'Level': '800', '英語': 'precaution', '和訳': '名）予防策、予防措置'},
+{'Level': '800', '英語': 'transparent', '和訳': '形）透明の'},
+{'Level': '800', '英語': 'coincide', '和訳': '動）同時に起こる'},
+{'Level': '800', '英語': 'concise', '和訳': '形）簡潔な'},
+{'Level': '800', '英語': 'delegation', '和訳': '名）代表団、（権限等の）委譲'},
+{'Level': '800', '英語': 'predecessor', '和訳': '名）前任者、前機種'},
+{'Level': '800', '英語': 'prominently', '和訳': '副）目立って、傑出して'},
+{'Level': '800', '英語': 'adoption', '和訳': '名）採用'},
+{'Level': '800', '英語': 'adhere', '和訳': '動）（規則や法律などに）忠実に従う、接着する'},
+{'Level': '800', '英語': 'appraisal', '和訳': '名）査定、評価'},
+{'Level': '800', '英語': 'allocate', '和訳': '動）割り当てる'},
+{'Level': '800', '英語': 'compile', '和訳': '動）取りまとめる、編集する'},
+{'Level': '800', '英語': 'conform', '和訳': '動）合わせる、一致する'},
+{'Level': '800', '英語': 'constraint', '和訳': '名）制約'},
+{'Level': '800', '英語': 'distraction', '和訳': '名）気を散らすもの、注意の妨げになるもの'},
+{'Level': '800', '英語': 'integral', '和訳': '形）不可欠の'},
+{'Level': '800', '英語': 'persistence', '和訳': '名）粘り強さ'},
+{'Level': '800', '英語': 'deduct', '和訳': '動）控除する'},
+{'Level': '800', '英語': 'embrace', '和訳': '動）積極的に受け入れる、快諾する'},
+{'Level': '800', '英語': 'synthetic', '和訳': '形）合成の'},
+{'Level': '800', '英語': 'intentionally', '和訳': '副）意図的に'},
+{'Level': '800', '英語': 'persuasive', '和訳': '形）説得力のある'},
+{'Level': '多義語', '英語': 'accommodate', '和訳': '（ニーズを）満たす、収容する'},
+{'Level': '多義語', '英語': 'address', '和訳': '動）対処する、話しかける、向ける、宛名を書く\n名）演説'},
+{'Level': '多義語', '英語': 'apply', '和訳': '動）応募する、塗る、適用される'},
+{'Level': '多義語', '英語': 'appointment', '和訳': '名）アポイント、予約、指名、任命'},
+{'Level': '多義語', '英語': 'article', '和訳': '名）記事、モノ'},
+{'Level': '多義語', '英語': 'battery', '和訳': '名）電池、一連、一式'},
+{'Level': '多義語', '英語': 'carry', '和訳': '動）扱う、持ち運ぶ'},
+{'Level': '多義語', '英語': 'carry out', '和訳': '実行する'},
+{'Level': '多義語', '英語': 'certain', '和訳': '形）ある決まった、特定の'},
+{'Level': '多義語', '英語': 'complete', '和訳': '形）完了した、全部そろった\n動）完了する、記入する'},
+{'Level': '多義語', '英語': 'consideration', '和訳': '名）検討、考慮、配慮、思いやり'},
+{'Level': '多義語', '英語': 'copy', '和訳': '名）（本・雑誌・CDなどの）冊、部、枚'},
+{'Level': '多義語', '英語': 'cover', '和訳': '動）報道する、覆う、含む'},
+{'Level': '多義語', '英語': 'critical', '和訳': '形）批判的な、非常に重要な'},
+{'Level': '多義語', '英語': 'decline', '和訳': '動）断る、下降する\n名）下降'},
+{'Level': '多義語', '英語': 'definition', '和訳': '名）定義、くっきりしていること、解像度'},
+{'Level': '多義語', '英語': 'deliver', '和訳': '動）配達する、（スピーチや講演を）行う'},
+{'Level': '多義語', '英語': 'demonstrate', '和訳': '動）実演する、明示する、証明する'},
+{'Level': '多義語', '英語': 'development', '和訳': '名）開発、出来事、住宅地、成長'},
+{'Level': '多義語', '英語': 'drawing', '和訳': '名）抽選、スケッチ、線画'},
+{'Level': '多義語', '英語': 'due', '和訳': '形）期限の、当然与えられるべき、～することになっている\n前）～が原因で\n名）会費'},
+{'Level': '多義語', '英語': 'edge', '和訳': '名）端、優位性'},
+{'Level': '多義語', '英語': 'express', '和訳': '動）表す\n形）急ぎの、急行の、明白な、明示された'},
+{'Level': '多義語', '英語': 'extend', '和訳': '動）延長する、表す、及ぶ、差し向ける'},
+{'Level': '多義語', '英語': 'fare', '和訳': '名）運賃、料理'},
+{'Level': '多義語', '英語': 'fashion', '和訳': '名）やり方、方法\u3000in a timely fashion'},
+{'Level': '多義語', '英語': 'old-fashioned', '和訳': '形）昔流行った、昔ながらの、時代遅れの'},
+{'Level': '多義語', '英語': 'feature', '和訳': '動）大きく扱う、目玉にする\n名）特集、特徴'},
+{'Level': '多義語', '英語': 'field', '和訳': '名）分野、野原\n動）うまくさばく'},
+{'Level': '多義語', '英語': 'invite', '和訳': '動）招待する、求める'},
+{'Level': '多義語', '英語': 'last', '和訳': '動）持ちこたえる、続く\n形）一番最近の'},
+{'Level': '多義語', '英語': 'lead', '和訳': '動）先導する、～という結果につながる'},
+{'Level': '多義語', '英語': 'mark', '和訳': '動）記す、記念する\n名）的、足跡、記録'},
+{'Level': '多義語', '英語': 'match', '和訳': '動）匹敵する、合わせる、合う'},
+{'Level': '多義語', '英語': 'object', '和訳': '動）反対する\n名）目的、モノ'},
+{'Level': '多義語', '英語': 'once', '和訳': '接）いったん～したらすぐ\n副）かつて'},
+{'Level': '多義語', '英語': 'otherwise', '和訳': '副）それ以外には、別のやり方で、さもなければ'},
+{'Level': '多義語', '英語': 'outgoing', '和訳': '形）社交的な、退職する'},
+{'Level': '多義語', '英語': 'outstanding', '和訳': '形）卓越した、抜きんでた、未払いの'},
+{'Level': '多義語', '英語': 'party', '和訳': '名）グループ、仲間、当事者'},
+{'Level': '多義語', '英語': 'practice', '和訳': '名）ならわし、慣行、開業\n動）開業する、実践する'},
+{'Level': '多義語', '英語': 'project', '和訳': '動）予測する、見積もる、（印象を）与える、投影する'},
+{'Level': '多義語', '英語': 'reservation', '和訳': '名）予約、懸念、慎重な姿勢'},
+{'Level': '多義語', '英語': 'run', '和訳': '動）運営する、出す、掲載する、続映[続演]される'},
+{'Level': '多義語', '英語': 'secure', '和訳': '形）安全な\n動）しっかり固定する、努力で何かを得る、確保する'},
+{'Level': '多義語', '英語': 'serve', '和訳': '動）サービスを提供する、（食事を）出す、役割を果たす'},
+{'Level': '多義語', '英語': 'service', '和訳': '動）点検する'},
+{'Level': '多義語', '英語': 'signature', '和訳': '名）署名\n形）特徴的な'},
+{'Level': '多義語', '英語': 'star', '和訳': '動）出演する'},
+{'Level': '多義語', '英語': 'steep', '和訳': '形）急な、急こう配の、法外な、非常に高い'},
+{'Level': '多義語', '英語': 'suggest', '和訳': '動）提案する、ほのめかす、示す'},
+{'Level': '多義語', '英語': 'term', '和訳': '名）観点、条件、言葉'},
+{'Level': '多義語', '英語': 'view', '和訳': '名）意見'},
+{'Level': '多義語', '英語': 'weigh', '和訳': '動）～の重さがある、重さを測る、比較検討する'},
+{'Level': '多義語', '英語': 'withdraw', '和訳': '動）撤収する、お金をおろす、取り下げる'},
+{'Level': 'キクタン Chapter 10', '英語': 'as for', '和訳': '～に関して'},
+{'Level': 'キクタン Chapter 10', '英語': 'in recognition of', '和訳': '～を評価して'},
+{'Level': 'キクタン Chapter 10', '英語': 'in keeping with ', '和訳': '～に従って'},
+{'Level': 'キクタン Chapter 10', '英語': 'on the verge of', '和訳': '～の寸前で'},
+{'Level': 'キクタン Chapter 10', '英語': 'in persuit of', '和訳': '～を追及して'},
+{'Level': 'キクタン Chapter 10', '英語': 'at the expense of', '和訳': '～を犠牲にして'},
+{'Level': 'キクタン Chapter 9', '英語': 'above all', '和訳': '何よりも'},
+{'Level': 'キクタン Chapter 9', '英語': 'under no circumstance', '和訳': 'どんなことがあっても～ない'},
+{'Level': 'キクタン Chapter 9', '英語': "on one's own", '和訳': '一人で'},
+{'Level': 'キクタン Chapter 9', '英語': 'after all', '和訳': '結局'},
+{'Level': 'キクタン Chapter 9', '英語': 'at the moment', '和訳': '今'},
+{'Level': 'キクタン Chapter 9', '英語': 'on end', '和訳': '続けて'},
+{'Level': 'キクタン Chapter 9', '英語': 'all the way', '和訳': 'はるばる'},
+{'Level': 'キクタン Chapter 9', '英語': 'by no mean', '和訳': '決して～でない'},
+{'Level': 'キクタン Chapter 9', '英語': 'for the most part', '和訳': '大抵は'},
+{'Level': 'キクタン Chapter 9', '英語': 'hardly [scarcely] ever', '和訳': 'めったに～しない'},
+{'Level': 'キクタン Chapter 8', '英語': 'turn out', '和訳': '結局は～になる'},
+{'Level': 'キクタン Chapter 8', '英語': 'compensate for', '和訳': '～の埋め合わせをする'},
+{'Level': 'キクタン Chapter 8', '英語': 'pay off', '和訳': '～を完済する'},
+{'Level': 'キクタン Chapter 8', '英語': 'show up', '和訳': '到着する'},
+{'Level': 'キクタン Chapter 8', '英語': 'stem from', '和訳': '～から生じる'},
+{'Level': 'キクタン Chapter 8', '英語': 'persist in', '和訳': '～を辛抱強く続ける'},
+{'Level': 'キクタン Chapter 8', '英語': 'set off', '和訳': '出発する'},
+{'Level': 'キクタン Chapter 8', '英語': 'withdraw from', '和訳': '～から退く'},
+{'Level': 'キクタン Chapter 8', '英語': 'turn to', '和訳': '～に求める'},
+{'Level': 'キクタン Chapter 8', '英語': 'live up to', '和訳': '～に応える'},
+{'Level': 'キクタン Chapter 8', '英語': 'back up', '和訳': '～を渋滞させる'},
+{'Level': 'キクタン Chapter 8', '英語': 'embark on', '和訳': '～に着手する'},
+{'Level': 'キクタン Chapter 8', '英語': 'proceed with', '和訳': '～を続ける'},
+{'Level': 'キクタン Chapter 8', '英語': 'succeed to', '和訳': '～を継承させる'},
+{'Level': 'キクタン Chapter 8', '英語': 'attend to', '和訳': '～を処理する'},
+{'Level': 'キクタン Chapter 8', '英語': 'insist on', '和訳': '～を強く要求する'},
+{'Level': 'キクタン Chapter 8', '英語': 'aim A to B', '和訳': 'AをBに向ける'},
+{'Level': 'キクタン Chapter 8', '英語': 'dedicate A to B', '和訳': 'AをBに捧げる'},
+{'Level': 'キクタン Chapter 8', '英語': 'charge A with B', '和訳': 'AをBで告発する'},
+{'Level': 'キクタン Chapter 8', '英語': 'replace A as B', '和訳': 'BとしてAにとって代わる'},
+{'Level': 'キクタン Chapter 8', '英語': 'confine A to B', '和訳': 'AをBに制限する'},
+{'Level': 'キクタン Chapter 8', '英語': 'dismiss A as B', '和訳': 'AをBだとして退ける'},
+{'Level': 'キクタン Chapter 8', '英語': 'strive to do', '和訳': '～しようと努力する'},
+{'Level': 'キクタン Chapter 8', '英語': 'serve to do', '和訳': '～するのに役立つ'},
+{'Level': 'キクタン Chapter 8', '英語': 'bear to do ', '和訳': '～するのを我慢する'},
+{'Level': 'キクタン Chapter 8', '英語': 'deserve to do', '和訳': '～する価値がある'},
+{'Level': 'キクタン Chapter 8', '英語': 'cause A to do', '和訳': 'Aに～させる'},
+{'Level': 'キクタン Chapter 8', '英語': 'plead with A to do', '和訳': 'Aに～してくれと訴える'},
+{'Level': 'キクタン Chapter 8', '英語': 'Preclude A from doing', '和訳': 'Aが～するのを妨げる'},
+{'Level': 'キクタン Chapter 8', '英語': 'compel A to do', '和訳': 'Aに無理やり～させる'},
+{'Level': 'キクタン Chapter 8', '英語': 'deter A from doing', '和訳': 'Aに～するのをやめさせる'},
+{'Level': 'キクタン Chapter 8', '英語': 'be committed to', '和訳': '～に専心している'},
+{'Level': 'キクタン Chapter 8', '英語': 'be instrumental in', '和訳': '～に役立っている'},
+{'Level': 'キクタン Chapter 8', '英語': 'be dedicated to', '和訳': '～に専心している'},
+{'Level': 'キクタン Chapter 8', '英語': 'be stuck in', '和訳': '～で立ち往生している'},
+{'Level': 'キクタン Chapter 8', '英語': 'be intended for', '和訳': '～向けである'},
+{'Level': 'キクタン Chapter 8', '英語': 'be indispensable to', '和訳': '～に不可欠である'},
+{'Level': 'キクタン Chapter 8', '英語': 'be equivalent to', '和訳': '～に相当する'},
+{'Level': 'キクタン Chapter 8', '英語': 'be typical of', '和訳': '～に特有である'},
+{'Level': 'キクタン Chapter 8', '英語': 'be appropriate for', '和訳': '～に適している'},
+{'Level': 'キクタン Chapter 8', '英語': 'be made up of', '和訳': '～から成り立っている'},
+{'Level': 'キクタン Chapter 8', '英語': 'be liable to do', '和訳': '～しがちである'},
+{'Level': 'キクタン Chapter 8', '英語': 'be poised to do', '和訳': '～する覚悟ができている'},
+{'Level': 'キクタン Chapter 8', '英語': 'be inclined to do', '和訳': '～したいと思っている'},
+{'Level': 'キクタン Chapter 8', '英語': 'take steps', '和訳': '処置をとる'},
+{'Level': 'キクタン Chapter 8', '英語': 'take effect', '和訳': '実施される'},
+{'Level': 'キクタン Chapter 8', '英語': 'make the most of', '和訳': '～最大限に利用する'},
+{'Level': 'キクタン Chapter 8', '英語': 'make it', '和訳': '到着する'},
+{'Level': 'キクタン Chapter 8', '英語': 'acquaint oneself with', '和訳': '精通する'},
+{'Level': 'キクタン Chapter 8', '英語': "make one's way", '和訳': '進む'},
+{'Level': 'キクタン Chapter 8', '英語': 'take credit for', '和訳': '～の功績を認められる'},
+{'Level': 'キクタン Chapter 7', '英語': 'exclusively', '和訳': '専ら'},
+{'Level': 'キクタン Chapter 7', '英語': 'consequently', '和訳': 'その結果'},
+{'Level': 'キクタン Chapter 7', '英語': 'briefly', '和訳': '少しの間'},
+{'Level': 'キクタン Chapter 7', '英語': 'adequately', '和訳': '十分に'},
+{'Level': 'キクタン Chapter 7', '英語': 'apparently', '和訳': 'どうやら～らしい'},
+{'Level': 'キクタン Chapter 7', '英語': 'specifically', '和訳': 'はっきりと'},
+{'Level': 'キクタン Chapter 7', '英語': 'prominently', '和訳': '目立つように'},
+{'Level': 'キクタン Chapter 7', '英語': 'remarkably', '和訳': '驚くほど'},
+{'Level': 'キクタン Chapter 7', '英語': 'securely', '和訳': 'しっかりと'},
+{'Level': 'キクタン Chapter 6', '英語': 'immense', '和訳': '巨大な'},
+{'Level': 'キクタン Chapter 6', '英語': 'satisfactory', '和訳': '満足な'},
+{'Level': 'キクタン Chapter 6', '英語': 'unlikely', '和訳': 'ありそうもない'},
+{'Level': 'キクタン Chapter 6', '英語': 'intense', '和訳': '激しい'},
+{'Level': 'キクタン Chapter 6', '英語': 'competent', '和訳': '堪能な'},
+{'Level': 'キクタン Chapter 6', '英語': 'monetary', '和訳': '通貨の'},
+{'Level': 'キクタン Chapter 6', '英語': 'vigorous', '和訳': '精力的な'},
+{'Level': 'キクタン Chapter 6', '英語': 'abstract', '和訳': '抽象的な'},
+{'Level': 'キクタン Chapter 6', '英語': 'elaborate', '和訳': '精巧な'},
+{'Level': 'キクタン Chapter 6', '英語': 'fascinating', '和訳': '魅力的な'},
+{'Level': 'キクタン Chapter 6', '英語': 'missing', '和訳': '見当たらない'},
+{'Level': 'キクタン Chapter 6', '英語': 'respectful', '和訳': '敬意を表する'},
+{'Level': 'キクタン Chapter 6', '英語': 'abrupt', '和訳': '突然の'},
+{'Level': 'キクタン Chapter 6', '英語': 'distinctive', '和訳': '独特な'},
+{'Level': 'キクタン Chapter 6', '英語': 'acute', '和訳': '激しい'},
+{'Level': 'キクタン Chapter 6', '英語': 'compulsory', '和訳': '義務的な'},
+{'Level': 'キクタン Chapter 6', '英語': 'inevitable', '和訳': '避けられない'},
+{'Level': 'キクタン Chapter 6', '英語': 'rigid', '和訳': '厳格な'},
+{'Level': 'キクタン Chapter 6', '英語': 'splendid', '和訳': '素晴らしい'},
+{'Level': 'キクタン Chapter 6', '英語': 'concerned', '和訳': '関係している'},
+{'Level': 'キクタン Chapter 6', '英語': 'harsh', '和訳': '厳しい'},
+{'Level': 'キクタン Chapter 6', '英語': 'industrious', '和訳': '勤勉な'},
+{'Level': 'キクタン Chapter 6', '英語': 'proficient', '和訳': '堪能な'},
+{'Level': 'キクタン Chapter 6', '英語': 'steep', '和訳': '急激な'},
+{'Level': 'キクタン Chapter 6', '英語': 'conventional', '和訳': '従来の'},
+{'Level': 'キクタン Chapter 6', '英語': 'devoted', '和訳': '献身的な'},
+{'Level': 'キクタン Chapter 6', '英語': 'harmful', '和訳': '有害な'},
+{'Level': 'キクタン Chapter 6', '英語': 'mere', '和訳': '単なる'},
+{'Level': 'キクタン Chapter 6', '英語': 'successive', '和訳': '連続する'},
+{'Level': 'キクタン Chapter 6', '英語': 'widespread', '和訳': '広く行き渡った'},
+{'Level': 'キクタン Chapter 6', '英語': 'grand', '和訳': '壮大な'},
+{'Level': 'キクタン Chapter 6', '英語': 'suspicious', '和訳': '怪しい'},
+{'Level': 'キクタン Chapter 6', '英語': 'humble', '和訳': '謙虚な'},
+{'Level': 'キクタン Chapter 5', '英語': 'omit', '和訳': '～を省略する'},
+{'Level': 'キクタン Chapter 5', '英語': 'mend', '和訳': 'を繕う'},
+{'Level': 'キクタン Chapter 5', '英語': 'hail', '和訳': '～を呼び止める'},
+{'Level': 'キクタン Chapter 5', '英語': 'attain', '和訳': 'を達成する'},
+{'Level': 'キクタン Chapter 5', '英語': 'stall', '和訳': 'をエンストさせる'},
+{'Level': 'キクタン Chapter 5', '英語': 'convey', '和訳': 'を伝える'},
+{'Level': 'キクタン Chapter 5', '英語': 'confess', '和訳': '～だと認める'},
+{'Level': 'キクタン Chapter 5', '英語': 'inhabit', '和訳': '～に住む'},
+{'Level': 'キクタン Chapter 5', '英語': 'spot', '和訳': '～を見つける'},
+{'Level': 'キクタン Chapter 5', '英語': 'commence', '和訳': '～を開始する'},
+{'Level': 'キクタン Chapter 5', '英語': 'boast', '和訳': '～を誇りにしている'},
+{'Level': 'キクタン Chapter 5', '英語': 'emerge', '和訳': '現れる'},
+{'Level': 'キクタン Chapter 5', '英語': 'transmit', '和訳': '～を放送する'},
+{'Level': 'キクタン Chapter 5', '英語': 'declare', '和訳': '～を宣言する'},
+{'Level': 'キクタン Chapter 5', '英語': 'stage', '和訳': '～を実施する'},
+{'Level': 'キクタン Chapter 5', '英語': 'utilize', '和訳': '～を利用する'},
+{'Level': 'キクタン Chapter 5', '英語': 'salute', '和訳': '～に敬礼する'},
+{'Level': 'キクタン Chapter 5', '英語': 'drain', '和訳': '～を枯渇させる'},
+{'Level': 'キクタン Chapter 5', '英語': 'cite', '和訳': '～に言及する'},
+{'Level': 'キクタン Chapter 5', '英語': 'inherit', '和訳': '～を相続する'},
+{'Level': 'キクタン Chapter 5', '英語': 'abandon', '和訳': '～を断念する'},
+{'Level': 'キクタン Chapter 5', '英語': 'absorb', '和訳': '～を吸収する'},
+{'Level': 'キクタン Chapter 5', '英語': 'assert', '和訳': '～だと断言する'},
+{'Level': 'キクタン Chapter 5', '英語': 'conquer', '和訳': '～を征服する'},
+{'Level': 'キクタン Chapter 5', '英語': 'halt', '和訳': '～を停止させる'},
+{'Level': 'キクタン Chapter 5', '英語': 'tap', '和訳': '～を開発する'},
+{'Level': 'キクタン Chapter 5', '英語': 'doubt', '和訳': '～でないと思う'},
+{'Level': 'キクタン Chapter 5', '英語': 'overtake', '和訳': '～を追い越す'},
+{'Level': 'キクタン Chapter 5', '英語': 'portray', '和訳': '～を描く'},
+{'Level': 'キクタン Chapter 5', '英語': 'slip', '和訳': '悪化する'},
+{'Level': 'キクタン Chapter 5', '英語': 'spark', '和訳': '～を誘発する'},
+{'Level': 'キクタン Chapter 5', '英語': 'sustain', '和訳': '～を維持する'},
+{'Level': 'キクタン Chapter 4', '英語': 'expenditure', '和訳': '支出'},
+{'Level': 'キクタン Chapter 4', '英語': 'revenue', '和訳': '収入'},
+{'Level': 'キクタン Chapter 4', '英語': 'shareholder', '和訳': '株主'},
+{'Level': 'キクタン Chapter 4', '英語': 'legislation', '和訳': '法律'},
+{'Level': 'キクタン Chapter 4', '英語': 'bankruptcy', '和訳': '破産'},
+{'Level': 'キクタン Chapter 4', '英語': 'ballot', '和訳': '投票'},
+{'Level': 'キクタン Chapter 4', '英語': 'penalty', '和訳': '罰金'},
+{'Level': 'キクタン Chapter 4', '英語': 'reimbursement', '和訳': '返済'},
+{'Level': 'キクタン Chapter 4', '英語': 'recession', '和訳': '不況'},
+{'Level': 'キクタン Chapter 4', '英語': 'turnout', '和訳': '参加者数'},
+{'Level': 'キクタン Chapter 4', '英語': 'expenditure', '和訳': '支出'},
+{'Level': 'キクタン Chapter 4', '英語': 'grant', '和訳': '補助金'},
+{'Level': 'キクタン Chapter 4', '英語': 'suburb', '和訳': '郊外'},
+{'Level': 'キクタン Chapter 4', '英語': 'substitute', '和訳': '代用品'},
+{'Level': 'キクタン Chapter 4', '英語': 'merchandise', '和訳': '商品'},
+{'Level': 'キクタン Chapter 4', '英語': 'benefit', '和訳': '手当'},
+{'Level': 'キクタン Chapter 3', '英語': 'ensure', '和訳': 'を保証する'},
+{'Level': 'キクタン Chapter 3', '英語': 'negotiate', '和訳': 'を交渉する'},
+{'Level': 'キクタン Chapter 3', '英語': 'anticipate', '和訳': 'を予期する'},
+{'Level': 'キクタン Chapter 3', '英語': 'assure', '和訳': 'に保証する'},
+{'Level': 'キクタン Chapter 3', '英語': 'exceed', '和訳': 'を超える'},
+{'Level': 'キクタン Chapter 3', '英語': 'appoint', '和訳': 'を任命する'},
+{'Level': 'キクタン Chapter 3', '英語': 'install', '和訳': 'を設置する'},
+{'Level': 'キクタン Chapter 3', '英語': 'relocate', '和訳': 'を移転させる'},
+{'Level': 'キクタン Chapter 3', '英語': 'enroll', '和訳': '登録する'},
+{'Level': 'キクタン Chapter 3', '英語': 'propose', '和訳': 'を提案する'},
+{'Level': 'キクタン Chapter 3', '英語': 'submit', '和訳': 'を提出する'},
+{'Level': 'キクタン Chapter 3', '英語': 'inquire', '和訳': '問い合わせる'},
+{'Level': 'キクタン Chapter 3', '英語': 'renew', '和訳': 'を更新する'},
+{'Level': 'キクタン Chapter 3', '英語': 'modify', '和訳': 'を修正する'},
+{'Level': 'キクタン Chapter 3', '英語': 'qualify', '和訳': 'の資格を得る'},
+{'Level': 'キクタン Chapter 3', '英語': 'deem', '和訳': 'だと見なす'},
+{'Level': 'キクタン Chapter 2', '英語': 'generate', '和訳': 'を生み出す'},
+{'Level': 'キクタン Chapter 2', '英語': 'last', '和訳': '続く'},
+{'Level': 'キクタン Chapter 2', '英語': 'decline', '和訳': '減少する'},
+{'Level': 'キクタン Chapter 2', '英語': 'broaden', '和訳': 'を広げる'},
+{'Level': 'キクタン Chapter 2', '英語': 'accommodate', '和訳': 'を収容する'},
+{'Level': 'キクタン Chapter 2', '英語': 'implement', '和訳': 'を実行する'},
+{'Level': 'キクタン Chapter 2', '英語': 'alleviate', '和訳': 'を緩和する'},
+{'Level': 'キクタン Chapter 2', '英語': 'allocate', '和訳': 'を割り当てる'},
+{'Level': 'キクタン Chapter 2', '英語': 'overlook', '和訳': 'を見渡せる'},
+{'Level': 'キクタン Chapter 2', '英語': 'pursue', '和訳': 'を追求する'},
+{'Level': 'キクタン Chapter 2', '英語': 'boost', '和訳': 'を増加させる'},
+{'Level': 'キクタン Chapter 2', '英語': 'suspend', '和訳': 'を一時停止する'},
+{'Level': 'キクタン Chapter 2', '英語': 'acknowledge', '和訳': 'を認める'},
+{'Level': 'キクタン Chapter 2', '英語': 'authorize', '和訳': 'を認可する'},
+{'Level': 'キクタン Chapter 2', '英語': 'preserve', '和訳': 'を保護する'},
+{'Level': 'キクタン Chapter 2', '英語': 'double', '和訳': 'を2倍にする'},
+{'Level': 'キクタン Chapter 2', '英語': 'specify', '和訳': 'を明確に述べる'},
+{'Level': 'キクタン Chapter 2', '英語': 'retain', '和訳': 'を保持する'},
+{'Level': 'キクタン Chapter 2', '英語': 'consult', '和訳': 'に助言を求める'},
+{'Level': 'キクタン Chapter 2', '英語': 'undergo', '和訳': 'を経験する'},
+{'Level': 'キクタン Chapter 2', '英語': 'disturb', '和訳': 'を乱す'},
+{'Level': 'キクタン Chapter 1', '英語': 'deposit', '和訳': '預金'},
+{'Level': 'キクタン Chapter 1', '英語': 'transportation', '和訳': '輸送'},
+{'Level': 'キクタン Chapter 1', '英語': 'replacement', '和訳': '後任者'},
+{'Level': 'キクタン Chapter 1', '英語': 'reputation', '和訳': '評判'},
+{'Level': 'キクタン Chapter 1', '英語': 'dispute', '和訳': '論争'},
+{'Level': 'キクタン Chapter 1', '英語': 'storage', '和訳': '保管'},
+{'Level': 'キクタン Chapter 1', '英語': 'household', '和訳': '世帯、家庭'},
+{'Level': 'キクタン Chapter 1', '英語': 'premise', '和訳': '敷地'},
+{'Level': 'キクタン Chapter 1', '英語': 'convention', '和訳': '代表者会議'},
+{'Level': 'キクタン Chapter 1', '英語': 'asset', '和訳': '資産'},
+{'Level': 'キクタン Chapter 1', '英語': 'prospect', '和訳': '見込み'},
+{'Level': 'キクタン Chapter 1', '英語': 'reference', '和訳': '言及'},
+{'Level': 'キクタン Chapter 1', '英語': 'substitute', '和訳': '代わりの人'},
+{'Level': 'キクタン Chapter 1', '英語': 'perspective', '和訳': '観点'},
+{'Level': 'キクタン Chapter 1', '英語': 'privilege', '和訳': '特権'},
+{'Level': 'キクタン Chapter 1', '英語': 'expectation', '和訳': '期待'}];
+        let currentIndex = 0;
+        let filteredWords = [...words];
+        let isShuffleEnabled = true; // シャッフルの状態を管理する変数
+        // ローカルストレージから覚えた単語のリストを取得します。なければ空の配列を使います。
+        let learnedWords = JSON.parse(localStorage.getItem("learnedWords")) || [];
+
+        // カテゴリ選択のプルダウンメニューを動的に生成します
+        function populateCategories() {
+            const categories = [...new Set(words.map(w => w.Level))];
+            const select = document.getElementById("categorySelect");
+            // カテゴリリストをクリア
+            // 'すべてのカテゴリ' 以外のオプションを削除
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            categories.sort(); // カテゴリをソートする
+            categories.forEach(cat => {
+                const option = document.createElement("option");
+                option.value = cat;
+                option.textContent = cat;
+                select.appendChild(option);
+            });
+        }
+        
+        // シャッフル機能のオン・オフを切り替えます
+        function toggleShuffle() {
+            isShuffleEnabled = document.getElementById('shuffleToggle').checked;
+            filterByCategory(); // 設定が変更されたので、単語リストを再生成します
+        }
+
+        // カテゴリによって単語をフィルタリングし、表示順を決定します
+        function filterByCategory() {
+            const selected = document.getElementById("categorySelect").value;
+            if (selected === "all") {
+                // 「覚えたリスト」に含まれていない単語をすべて表示
+                filteredWords = words.filter(w => !learnedWords.includes(w.英語));
+            } else {
+                // 選択されたカテゴリ内で、「覚えたリスト」に含まれていない単語を表示
+                filteredWords = words.filter(w => w.Level === selected && !learnedWords.includes(w.英語));
+            }
+
+            if (isShuffleEnabled) {
+                // シャッフルがオンの場合、配列をランダムに並び替えます
+                for (let i = filteredWords.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [filteredWords[i], filteredWords[j]] = [filteredWords[j], filteredWords[i]];
+                }
+            } else {
+                // シャッフルがオフの場合、英語のアルファベット順にソートします
+                filteredWords.sort((a, b) => a.英語.localeCompare(b.英語));
+            }
+
+            currentIndex = 0;
+            showWord();
+        }
+
+        // カードに単語を表示します
+        function showWord() {
+            const wordDisplay = document.getElementById("wordDisplay");
+            const translationDisplay = document.getElementById("translationDisplay");
+
+            if (filteredWords.length === 0) {
+                wordDisplay.textContent = "クリア！";
+                translationDisplay.textContent = "このカテゴリの単語をすべて覚えました！";
+                translationDisplay.style.display = "block"; // メッセージを表示
+                return;
+            }
+            const word = filteredWords[currentIndex];
+            wordDisplay.textContent = word.英語;
+            translationDisplay.textContent = word.和訳;
+            translationDisplay.style.display = "none"; // 最初は和訳を隠す
+        }
+
+        // 和訳を表示します
+        function showTranslation() {
+            if (filteredWords.length > 0) {
+                document.getElementById("translationDisplay").style.display = "block";
+            }
+        }
+
+        // 次の単語へ進みます
+        function nextWord() {
+            if (filteredWords.length > 0) {
+                currentIndex = (currentIndex + 1) % filteredWords.length;
+                showWord();
+            }
+        }
+
+        // 単語を「覚えた」リストに追加します
+        function markLearned() {
+            if (filteredWords.length === 0) return;
+
+            const word = filteredWords[currentIndex].英語;
+            if (!learnedWords.includes(word)) {
+                learnedWords.push(word);
+                // ローカルストレージに保存して、進捗が消えないようにします
+                localStorage.setItem("learnedWords", JSON.stringify(learnedWords));
+                updateLearnedList();
+                
+                // 現在の単語をリストから削除して、次の単語を表示
+                filteredWords.splice(currentIndex, 1);
+                if (currentIndex >= filteredWords.length) {
+                    currentIndex = 0;
+                }
+                showWord();
+            }
+        }
+
+        // 「覚えた単語一覧」を更新します
+        function updateLearnedList() {
+            const list = document.getElementById("learnedWords");
+            list.innerHTML = "";
+            learnedWords.forEach(w => {
+                const li = document.createElement("li");
+                li.textContent = w;
+                list.appendChild(li);
+            });
+        }
+
+        // 初期化処理
+        function initializeApp() {
+            populateCategories();
+            filterByCategory();
+            updateLearnedList();
+        }
+        
+        initializeApp();
+    </script>
+</body>
+</html>
