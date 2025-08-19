@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>単語学習アプリ</title>
+    <title>単語学習アプリ v4</title>
     <!-- Tailwind CSSを読み込みます -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fontsからモダンなフォントを読み込みます -->
@@ -28,6 +28,16 @@
         .toggle-checkbox:checked + .toggle-label {
             @apply: bg-green-500;
             background-color: #22c55e;
+        }
+        /* 覚えた単語リストのアイテムにカーソルとホバー効果を追加します */
+        #learnedWords li {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+        #learnedWords li:hover {
+            background-color: #f1f5f9; /* slate-100 */
         }
     </style>
 </head>
@@ -64,7 +74,16 @@
 
             <!-- 単語カード -->
             <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8 text-center mb-6">
-                <div class="word text-4xl md:text-5xl font-bold text-slate-900 mb-4 min-h-[60px] flex items-center justify-center" id="wordDisplay"></div>
+                <!-- 単語と発音ボタン -->
+                <div class="flex items-center justify-center gap-3 mb-4 min-h-[60px]">
+                    <div class="word text-4xl md:text-5xl font-bold text-slate-900" id="wordDisplay"></div>
+                    <button onclick="speakWord()" id="speakBtn" class="p-2 text-slate-500 hover:text-blue-600 transition-colors rounded-full hover:bg-slate-200" aria-label="発音を聞く">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.953 9.953 0 0118 10a9.953 9.953 0 01-1.929 7.071 1 1 0 01-1.414-1.414A7.953 7.953 0 0016 10a7.953 7.953 0 00-1.343-4.657 1 1 0 010-1.414zm-2.828 2.828a1 1 0 011.414 0A5.953 5.953 0 0114 10a5.953 5.953 0 01-.757 3.243 1 1 0 01-1.414-1.414A3.953 3.953 0 0012 10a3.953 3.953 0 00-.586-2.243 1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+
                 <div class="translation text-2xl md:text-3xl text-slate-600 mb-8 min-h-[80px]" id="translationDisplay"></div>
                 
                 <!-- 操作ボタン -->
@@ -88,8 +107,9 @@
 
             <!-- 覚えた単語リスト -->
             <div id="learnedList" class="w-full bg-white rounded-2xl shadow-lg p-6 md:p-8">
-                <h2 class="text-2xl font-bold text-slate-900 mb-4 text-left">覚えた単語一覧</h2>
-                <ul id="learnedWords" class="list-disc list-inside space-y-2 text-left text-slate-700"></ul>
+                <h2 class="text-2xl font-bold text-slate-900 mb-2 text-left">覚えた単語一覧</h2>
+                <p class="text-sm text-slate-500 mb-4">単語をクリックすると、もう一度問題に出ます。</p>
+                <ul id="learnedWords" class="space-y-1 text-left text-slate-700"></ul>
             </div>
         </div>
     </div>
@@ -196,7 +216,8 @@
                     [filteredWords[i], filteredWords[j]] = [filteredWords[j], filteredWords[i]];
                 }
             } else {
-                filteredWords.sort((a, b) => a.英語.localeCompare(b.英語));
+                // シャッフルしない場合は元のスプレッドシート順（またはアルファベット順など）
+                // 必要であればソート処理を追加
             }
             currentIndex = 0;
             showWord();
@@ -209,13 +230,16 @@
             const wordDisplay = document.getElementById("wordDisplay");
             const translationDisplay = document.getElementById("translationDisplay");
             const toggleBtn = document.getElementById("toggleAnswerBtn");
+            const speakBtn = document.getElementById("speakBtn");
 
             if (filteredWords.length === 0) {
                 wordDisplay.textContent = "クリア！";
                 translationDisplay.textContent = "このカテゴリの単語をすべて覚えました！";
                 translationDisplay.style.display = "block";
+                speakBtn.style.display = 'none'; // 発音ボタンを隠す
                 return;
             }
+            speakBtn.style.display = 'inline-block'; // 発音ボタンを表示
             const word = filteredWords[currentIndex];
             wordDisplay.textContent = word.英語;
             translationDisplay.textContent = word.和訳;
@@ -225,6 +249,20 @@
             toggleBtn.textContent = "答えを見る";
             toggleBtn.classList.remove('bg-orange-500', 'hover:bg-orange-600');
             toggleBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        }
+
+        /**
+         * 【新機能】Web Speech APIを使って単語を発音します
+         */
+        function speakWord() {
+            if (filteredWords.length === 0 || !('speechSynthesis' in window)) {
+                alert('お使いのブラウザは音声読み上げに対応していません。');
+                return;
+            }
+            const wordToSpeak = filteredWords[currentIndex].英語;
+            const utterance = new SpeechSynthesisUtterance(wordToSpeak);
+            utterance.lang = 'en-US';
+            window.speechSynthesis.speak(utterance);
         }
 
         /**
@@ -288,14 +326,34 @@
         }
 
         /**
+         * 【新機能】覚えた単語をリストから削除し、再度問題に出題します
+         */
+        function unlearnWord(wordToUnlearn) {
+            // learnedWords配列から対象の単語を削除
+            learnedWords = learnedWords.filter(w => w !== wordToUnlearn);
+            // localStorageを更新
+            localStorage.setItem("learnedWords", JSON.stringify(learnedWords));
+            
+            // 問題リストを再フィルタリングして、単語が戻るようにする
+            filterByCategory();
+            // 覚えた単語一覧の表示を更新
+            updateLearnedList();
+        }
+
+        /**
          * 「覚えた単語一覧」を更新します
          */
         function updateLearnedList() {
             const list = document.getElementById("learnedWords");
-            list.innerHTML = "";
-            learnedWords.forEach(w => {
+            list.innerHTML = ""; // リストをクリア
+            // 覚えた単語をアルファベット順にソートして表示
+            const sortedLearnedWords = [...learnedWords].sort((a, b) => a.localeCompare(b));
+            
+            sortedLearnedWords.forEach(word => {
                 const li = document.createElement("li");
-                li.textContent = w;
+                li.textContent = word;
+                // クリックイベントを追加
+                li.onclick = () => unlearnWord(word);
                 list.appendChild(li);
             });
         }
