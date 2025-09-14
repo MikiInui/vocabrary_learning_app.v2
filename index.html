@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>単語学習アプリ v4</title>
+    <title>単語学習アプリ v4 (修正版)</title>
     <!-- Tailwind CSSを読み込みます -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fontsからモダンなフォントを読み込みます -->
@@ -181,15 +181,18 @@
          * カテゴリ選択のプルダウンメニューを動的に生成します
          */
         function populateCategories() {
-            const categories = [...new Set(words.map(w => w.Level))];
+            // ★修正点1: w.Level を w.カテゴリ に変更
+            const categories = [...new Set(words.map(w => w.カテゴリ))];
             const select = document.getElementById("categorySelect");
             while (select.options.length > 1) select.remove(1);
             categories.sort();
             categories.forEach(cat => {
-                const option = document.createElement("option");
-                option.value = cat;
-                option.textContent = cat;
-                select.appendChild(option);
+                if (cat) { // カテゴリ名が空でない場合のみ追加
+                    const option = document.createElement("option");
+                    option.value = cat;
+                    option.textContent = cat;
+                    select.appendChild(option);
+                }
             });
         }
         
@@ -206,9 +209,10 @@
          */
         function filterByCategory() {
             const selected = document.getElementById("categorySelect").value;
+            // ★修正点2: w.Level を w.カテゴリ に変更
             filteredWords = (selected === "all")
                 ? words.filter(w => !learnedWords.includes(w.英語))
-                : words.filter(w => w.Level === selected && !learnedWords.includes(w.英語));
+                : words.filter(w => w.カテゴリ === selected && !learnedWords.includes(w.英語));
 
             if (isShuffleEnabled) {
                 for (let i = filteredWords.length - 1; i > 0; i--) {
@@ -216,8 +220,7 @@
                     [filteredWords[i], filteredWords[j]] = [filteredWords[j], filteredWords[i]];
                 }
             } else {
-                // シャッフルしない場合は元のスプレッドシート順（またはアルファベット順など）
-                // 必要であればソート処理を追加
+                // シャッフルしない場合は元のスプレッドシート順
             }
             currentIndex = 0;
             showWord();
@@ -252,7 +255,7 @@
         }
 
         /**
-         * 【新機能】Web Speech APIを使って単語を発音します
+         * Web Speech APIを使って単語を発音します
          */
         function speakWord() {
             if (filteredWords.length === 0 || !('speechSynthesis' in window)) {
@@ -326,7 +329,7 @@
         }
 
         /**
-         * 【新機能】覚えた単語をリストから削除し、再度問題に出題します
+         * 覚えた単語をリストから削除し、再度問題に出題します
          */
         function unlearnWord(wordToUnlearn) {
             // learnedWords配列から対象の単語を削除
